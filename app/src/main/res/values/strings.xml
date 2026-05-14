@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AppCloner</string>
+    <string name="app_subtitle">Parallel Space Manager</string>
+
+    <string name="manage">Manage</string>
+    <string name="settings">Settings</string>
+    <string name="back">Back</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="start">Start</string>
+    <string name="cancel">Cancel</string>
+    <string name="clone">Clone</string>
+
+    <string name="no_apps_found">No apps found</string>
+    <string name="no_clones">No cloned apps</string>
+
+    <string name="manage_clones">Manage Clones</string>
+    <string name="clone_settings">Clone Settings</string>
+
+    <string name="spoofing_settings">Spoofing Settings</string>
+    <string name="fake_package_name">Fake Package Name</string>
+    <string name="fake_device_id">Fake Device ID</string>
+    <string name="fake_android_id">Fake Android ID</string>
+    <string name="fake_serial">Fake Serial Number</string>
+
+    <string name="clone_options">Clone Options</string>
+    <string name="hide_icon">Hide Icon</string>
+    <string name="spoof_signature">Spoof Signature</string>
+
+    <string name="total_clones">Total Clones: 0</string>
+
+    <string name="global_device_ids">Global Device IDs</string>
+    <string name="device_id">Device ID</string>
+    <string name="android_id">Android ID</string>
+    <string name="serial_number">Serial Number</string>
+    <string name="imei">IMEI</string>
+
+    <string name="binder_settings">Binder Settings</string>
+    <string name="enable_logging">Enable Binder Logging</string>
+    <string name="enable_global_spoof">Enable Global Spoofing</string>
+
+    <string name="save_settings">Save Settings</string>
+    <string name="generate_new">Generate New IDs</string>
+
+    <string name="starting_clone">Starting cloned app...</string>
+</resources>

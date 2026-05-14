@@ -1,0 +1,33 @@
+# 添加项目目录
+/workspace/AppCloner/
+
+# 忽略编译产物
+/build
+/app/build
+/app/libs
+/out
+/.gradle
+
+# 忽略本地库
+*.so
+*.a
+*.aar
+
+# 忽略 IDE 配置
+/.idea
+*.iml
+/local.properties
+
+# 忽略日志文件
+*.log
+
+# 忽略临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# 忽略 NDK 编译产物
+app/.cxx/
+CMakeLists.txt
+*.cmake
