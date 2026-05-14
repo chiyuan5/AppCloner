@@ -1,16 +1,12 @@
 package com.appcloner.manager;
 
 import android.app.ActivityManager;
-import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.UserHandle;
@@ -25,7 +21,6 @@ import com.google.gson.reflect.TypeToken;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,7 +31,6 @@ public class CloneManager {
 
     private static final String TAG = "CloneManager";
     private static final String CLONE_DATA_FILE = "clone_profiles.dat";
-    private static final String CLONE_DIR = "clones";
     private static final int BASE_USER_ID = 10000;
 
     private static CloneManager instance;
@@ -67,7 +61,6 @@ public class CloneManager {
         this.context = context.getApplicationContext();
         this.spoofConfig = new SpoofConfig(context);
         loadProfiles();
-        scanExistingClones();
         Logger.d(TAG, "CloneManager initialized with " + cloneProfiles.size() + " profiles");
     }
 
@@ -79,7 +72,11 @@ public class CloneManager {
         try {
             File file = new File(context.getFilesDir(), CLONE_DATA_FILE);
             if (file.exists()) {
-                String json = readFile(file);
+                byte[] bytes = new byte[(int) file.length()];
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+                    fis.read(bytes);
+                }
+                String json = new String(bytes);
                 Type type = new TypeToken<Map<String, CloneProfile>>(){}.getType();
                 cloneProfiles = gson.fromJson(json, type);
                 if (cloneProfiles == null) {
@@ -96,29 +93,11 @@ public class CloneManager {
         try {
             File file = new File(context.getFilesDir(), CLONE_DATA_FILE);
             String json = gson.toJson(cloneProfiles);
-            writeFile(file, json);
-        } catch (Exception e) {
-            Logger.e(TAG, "Failed to save profiles", e);
-        }
-    }
-
-    private void scanExistingClones() {
-        UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-        List<UserManager.UserLifecycleListener> listeners = new ArrayList<>();
-
-        try {
-            for (int userId : userManager.getUserIds()) {
-                if (userId >= BASE_USER_ID) {
-                    String[] packages = context.getPackageManager().getPackagesForUid(userId);
-                    if (packages != null) {
-                        for (String packageName : packages) {
-                            packageToUserId.put(packageName, userId);
-                        }
-                    }
-                }
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(json.getBytes());
             }
         } catch (Exception e) {
-            Logger.e(TAG, "Failed to scan existing clones", e);
+            Logger.e(TAG, "Failed to save profiles", e);
         }
     }
 
@@ -208,9 +187,6 @@ public class CloneManager {
         CloneProfile profile = cloneProfiles.remove(packageName);
         if (profile != null) {
             Integer userId = packageToUserId.remove(packageName);
-            if (userId != null) {
-                freeUserId(userId);
-            }
             saveProfiles();
             Logger.d(TAG, "Removed clone profile for " + packageName);
         }
@@ -223,10 +199,6 @@ public class CloneManager {
         }
         packageToUserId.put(packageName, nextUserId);
         return nextUserId;
-    }
-
-    private void freeUserId(int userId) {
-        // Cleanup user data would be done here in production
     }
 
     public boolean startClonedApp(String packageName) {
@@ -271,20 +243,6 @@ public class CloneManager {
 
     public SpoofConfig getSpoofConfig() {
         return spoofConfig;
-    }
-
-    private String readFile(File file) throws IOException {
-        byte[] bytes = new byte[(int) file.length()];
-        try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
-            fis.read(bytes);
-        }
-        return new String(bytes);
-    }
-
-    private void writeFile(File file, String content) throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(file)) {
-            fos.write(content.getBytes());
-        }
     }
 
     public int getCloneCount() {

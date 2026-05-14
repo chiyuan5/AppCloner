@@ -15,7 +15,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.SwipeRefreshLayout;
 
 import com.appcloner.R;
 import com.appcloner.manager.CloneManager;
@@ -32,7 +31,6 @@ public class MainActivity extends AppCompatActivity {
 
     private RecyclerView recyclerView;
     private AppListAdapter adapter;
-    private SwipeRefreshLayout swipeRefresh;
     private TextView emptyView;
     private Button btnManage, btnSettings;
 
@@ -57,7 +55,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void initViews() {
         recyclerView = findViewById(R.id.recycler_view);
-        swipeRefresh = findViewById(R.id.swipe_refresh);
         emptyView = findViewById(R.id.empty_view);
         btnManage = findViewById(R.id.btn_manage);
         btnSettings = findViewById(R.id.btn_settings);
@@ -81,13 +78,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemLongClick(AppInfo appInfo) {
                 showAppOptions(appInfo);
-            }
-        });
-
-        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-            @Override
-            public void onRefresh() {
-                loadApps();
             }
         });
     }
@@ -119,7 +109,6 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void run() {
                             adapter.updateData(apps);
-                            swipeRefresh.setRefreshing(false);
 
                             if (apps.isEmpty()) {
                                 emptyView.setVisibility(View.VISIBLE);
@@ -135,7 +124,6 @@ public class MainActivity extends AppCompatActivity {
                     mainHandler.post(new Runnable() {
                         @Override
                         public void run() {
-                            swipeRefresh.setRefreshing(false);
                             Toast.makeText(MainActivity.this, "Failed to load apps", Toast.LENGTH_SHORT).show();
                         }
                     });
