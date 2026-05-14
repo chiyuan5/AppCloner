@@ -1,16 +1,12 @@
 package com.appcloner.manager;
 
-import android.app.ActivityManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Build;
-import android.os.UserHandle;
-import android.os.UserManager;
 
 import com.appcloner.model.AppInfo;
 import com.appcloner.model.CloneProfile;
@@ -19,8 +15,10 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,18 +29,16 @@ public class CloneManager {
 
     private static final String TAG = "CloneManager";
     private static final String CLONE_DATA_FILE = "clone_profiles.dat";
-    private static final int BASE_USER_ID = 10000;
+    private static final String CLONE_DIR_NAME = "clone_apks";
 
     private static CloneManager instance;
     private Context context;
     private SpoofConfig spoofConfig;
     private Map<String, CloneProfile> cloneProfiles;
-    private Map<String, Integer> packageToUserId;
     private Gson gson;
 
     private CloneManager() {
         cloneProfiles = new HashMap<>();
-        packageToUserId = new HashMap<>();
         gson = new Gson();
     }
 
@@ -73,7 +69,7 @@ public class CloneManager {
             File file = new File(context.getFilesDir(), CLONE_DATA_FILE);
             if (file.exists()) {
                 byte[] bytes = new byte[(int) file.length()];
-                try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+                try (FileInputStream fis = new FileInputStream(file)) {
                     fis.read(bytes);
                 }
                 String json = new String(bytes);
@@ -108,8 +104,10 @@ public class CloneManager {
         List<PackageInfo> packages = pm.getInstalledPackages(0);
         for (PackageInfo packageInfo : packages) {
             if ((packageInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0 || includeSystemApps) {
-                AppInfo appInfo = createAppInfo(packageInfo, pm);
-                appList.add(appInfo);
+                if (!packageInfo.packageName.equals(context.getPackageName())) {
+                    AppInfo appInfo = createAppInfo(packageInfo, pm);
+                    appList.add(appInfo);
+                }
             }
         }
 
@@ -122,14 +120,21 @@ public class CloneManager {
 
         for (Map.Entry<String, CloneProfile> entry : cloneProfiles.entrySet()) {
             CloneProfile profile = entry.getValue();
-            try {
-                PackageInfo packageInfo = pm.getPackageInfo(profile.getClonedPackageName(), 0);
-                AppInfo appInfo = createAppInfo(packageInfo, pm);
-                appInfo.setCloned(true);
-                appInfo.setClonedPackageName(profile.getClonedPackageName());
-                appList.add(appInfo);
-            } catch (PackageManager.NameNotFoundException e) {
-                Logger.w(TAG, "Cloned package not found: " + profile.getClonedPackageName());
+            if (profile.getClonedPackageName() != null) {
+                try {
+                    PackageInfo packageInfo = pm.getPackageInfo(profile.getClonedPackageName(), 0);
+                    AppInfo appInfo = new AppInfo();
+                    appInfo.setPackageName(entry.getKey());
+                    appInfo.setAppName(packageInfo.applicationInfo.loadLabel(pm).toString());
+                    appInfo.setVersionName(packageInfo.versionName);
+                    appInfo.setVersionCode(packageInfo.versionCode);
+                    appInfo.setIcon(packageInfo.applicationInfo.loadIcon(pm));
+                    appInfo.setCloned(true);
+                    appInfo.setClonedPackageName(profile.getClonedPackageName());
+                    appList.add(appInfo);
+                } catch (PackageManager.NameNotFoundException e) {
+                    Logger.w(TAG, "Clone not installed: " + profile.getClonedPackageName());
+                }
             }
         }
 
@@ -155,18 +160,15 @@ public class CloneManager {
     }
 
     public CloneProfile createCloneProfile(String packageName) {
+        CloneProfile profile;
         if (cloneProfiles.containsKey(packageName)) {
-            return cloneProfiles.get(packageName);
+            profile = cloneProfiles.get(packageName);
+        } else {
+            profile = spoofConfig.generateProfile(packageName);
+            cloneProfiles.put(packageName, profile);
+            saveProfiles();
         }
-
-        CloneProfile profile = spoofConfig.generateProfile(packageName);
-        int userId = allocateUserId(packageName);
-        profile.setUserId(userId);
-
-        cloneProfiles.put(packageName, profile);
-        saveProfiles();
-
-        Logger.d(TAG, "Created clone profile for " + packageName + " with user ID " + userId);
+        Logger.d(TAG, "Created clone profile for " + packageName);
         return profile;
     }
 
@@ -180,39 +182,41 @@ public class CloneManager {
     }
 
     public boolean isAppCloned(String packageName) {
-        return cloneProfiles.containsKey(packageName);
+        if (!cloneProfiles.containsKey(packageName)) {
+            return false;
+        }
+        CloneProfile profile = cloneProfiles.get(packageName);
+        if (profile == null || profile.getClonedPackageName() == null) {
+            return false;
+        }
+        try {
+            context.getPackageManager().getPackageInfo(profile.getClonedPackageName(), 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
     }
 
     public void removeCloneProfile(String packageName) {
-        CloneProfile profile = cloneProfiles.remove(packageName);
-        if (profile != null) {
-            Integer userId = packageToUserId.remove(packageName);
-            saveProfiles();
-            Logger.d(TAG, "Removed clone profile for " + packageName);
-        }
-    }
-
-    private int allocateUserId(String packageName) {
-        int nextUserId = BASE_USER_ID;
-        while (packageToUserId.containsValue(nextUserId)) {
-            nextUserId++;
-        }
-        packageToUserId.put(packageName, nextUserId);
-        return nextUserId;
+        cloneProfiles.remove(packageName);
+        saveProfiles();
+        Logger.d(TAG, "Removed clone profile for " + packageName);
     }
 
     public boolean startClonedApp(String packageName) {
         CloneProfile profile = cloneProfiles.get(packageName);
-        if (profile == null) {
+        if (profile == null || profile.getClonedPackageName() == null) {
             Logger.w(TAG, "No profile found for " + packageName);
             return false;
         }
 
         try {
-            Intent intent = context.getPackageManager().getLaunchIntentForPackage(profile.getClonedPackageName());
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
+            PackageManager pm = context.getPackageManager();
+            Intent launchIntent = pm.getLaunchIntentForPackage(profile.getClonedPackageName());
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(launchIntent);
+                Logger.d(TAG, "Started cloned app: " + profile.getClonedPackageName());
                 return true;
             }
         } catch (Exception e) {
@@ -221,19 +225,62 @@ public class CloneManager {
         return false;
     }
 
-    public boolean uninstallClone(String packageName) {
+    public Intent getCloneInstallIntent(String packageName) {
         CloneProfile profile = cloneProfiles.get(packageName);
         if (profile == null) {
+            return null;
+        }
+
+        try {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo sourcePkg = pm.getPackageInfo(packageName, 0);
+            
+            File sourceApk = new File(sourcePkg.applicationInfo.sourceDir);
+            File cloneDir = new File(context.getFilesDir(), CLONE_DIR_NAME);
+            if (!cloneDir.exists()) {
+                cloneDir.mkdirs();
+            }
+            
+            File destApk = new File(cloneDir, profile.getClonedPackageName() + ".apk");
+            
+            copyFile(sourceApk, destApk);
+            
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(Uri.fromFile(destApk), "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.GRANT_READ_URI_PERMISSION);
+            
+            Logger.d(TAG, "Prepared clone APK: " + destApk.getAbsolutePath());
+            return intent;
+            
+        } catch (Exception e) {
+            Logger.e(TAG, "Failed to prepare clone APK", e);
+            return null;
+        }
+    }
+
+    private void copyFile(File source, File dest) throws Exception {
+        try (InputStream in = new FileInputStream(source);
+             OutputStream out = new FileOutputStream(dest)) {
+            byte[] buffer = new byte[65536];
+            int length;
+            while ((length = in.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+        }
+    }
+
+    public boolean uninstallClone(String packageName) {
+        CloneProfile profile = cloneProfiles.get(packageName);
+        if (profile == null || profile.getClonedPackageName() == null) {
             return false;
         }
 
         try {
             Intent intent = new Intent(Intent.ACTION_DELETE);
-            intent.setData(android.net.Uri.parse("package:" + profile.getClonedPackageName()));
+            intent.setData(Uri.parse("package:" + profile.getClonedPackageName()));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-
-            removeCloneProfile(packageName);
             return true;
         } catch (Exception e) {
             Logger.e(TAG, "Failed to uninstall clone", e);
@@ -250,8 +297,10 @@ public class CloneManager {
     }
 
     public void updateProfile(CloneProfile profile) {
-        cloneProfiles.put(profile.getOriginalPackageName(), profile);
-        spoofConfig.saveProfile(profile);
-        saveProfiles();
+        if (profile != null && profile.getOriginalPackageName() != null) {
+            cloneProfiles.put(profile.getOriginalPackageName(), profile);
+            spoofConfig.saveProfile(profile);
+            saveProfiles();
+        }
     }
 }
