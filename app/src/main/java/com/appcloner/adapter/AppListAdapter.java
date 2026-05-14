@@ -69,9 +69,9 @@ public class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.AppViewH
             }
         });
 
-        holder.itemView.setOnLongClickListener(new View.OnClickListener() {
+        holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
-            public boolean onClick(View v) {
+            public boolean onLongClick(View v) {
                 if (listener != null) {
                     listener.onItemLongClick(appInfo);
                     return true;
