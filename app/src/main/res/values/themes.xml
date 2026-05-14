@@ -15,4 +15,10 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">true</item>
     </style>
+
+    <style name="Widget.AppCompat.Button.OutlinedButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+    </style>
+
+    <style name="Widget.AppCompat.Button.OutlinedButton.Icon" parent="Widget.MaterialComponents.Button.OutlinedButton.Icon">
+    </style>
 </resources>
